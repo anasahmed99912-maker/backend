@@ -59,3 +59,18 @@ Local endpoints:
 ```powershell
 dotnet build
 ```
+
+## Railway
+
+Railway builds this repository with the included `Dockerfile`. Do not set a
+fixed `ASPNETCORE_URLS` value; Railway injects `PORT`, and the API binds to it
+automatically.
+
+Set the public domain target port to the same value shown by Railway's `PORT`
+variable, or remove the explicit target port and let Railway route to `PORT`.
+
+Recommended health-check path:
+
+```text
+/health
+```

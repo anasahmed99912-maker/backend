@@ -10,6 +10,13 @@ using SecureMessaging.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var railwayPort = Environment.GetEnvironmentVariable("PORT");
+
+if (int.TryParse(railwayPort, out var port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 builder.Services.Configure<MongoDbOptions>(
     builder.Configuration.GetSection(MongoDbOptions.SectionName));
 builder.Services.Configure<JwtOptions>(
@@ -92,6 +99,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddHostedService<MongoDbInitializer>();
 builder.Services.AddScoped<IUserRepository, MongoUserRepository>();
 builder.Services.AddScoped<IConversationRepository, MongoConversationRepository>();
 builder.Services.AddScoped<IMessageRepository, MongoMessageRepository>();
@@ -103,16 +111,6 @@ builder.Services.AddScoped<IConversationService, ConversationService>();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var mongoDbContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
-    await mongoDbContext.InitializeAsync(CancellationToken.None);
-}
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
 app.UseCors("ClientApp");
 app.UseRateLimiter();
 app.UseAuthentication();
