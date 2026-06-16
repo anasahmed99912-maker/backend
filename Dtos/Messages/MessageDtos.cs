@@ -17,6 +17,19 @@ public sealed record SendEncryptedMessageRequest(
     string? ClientMessageId,
     EncryptedAttachmentDto? Attachment);
 
+public sealed record UpdateEncryptedMessageRequest(
+    [Required] string MessageId,
+    [Required] string ConversationId,
+    [Required] string CiphertextBase64,
+    [Required] string IvBase64,
+    string EncryptionAlgorithm,
+    bool PreserveAttachment,
+    EncryptedAttachmentDto? Attachment);
+
+public sealed record DeleteEncryptedMessageRequest(
+    [Required] string MessageId,
+    [Required] string ConversationId);
+
 public sealed record EncryptedMessageDto(
     string Id,
     string ConversationId,
@@ -26,4 +39,5 @@ public sealed record EncryptedMessageDto(
     string EncryptionAlgorithm,
     string? ClientMessageId,
     EncryptedAttachmentDto? Attachment,
-    DateTime SentAtUtc);
+    DateTime SentAtUtc,
+    DateTime? UpdatedAtUtc);

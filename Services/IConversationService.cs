@@ -25,6 +25,16 @@ public interface IConversationService
         SendEncryptedMessageRequest request,
         CancellationToken cancellationToken);
 
+    Task<EncryptedMessageDto> UpdateMessageAsync(
+        string currentUserId,
+        UpdateEncryptedMessageRequest request,
+        CancellationToken cancellationToken);
+
+    Task DeleteMessageAsync(
+        string currentUserId,
+        DeleteEncryptedMessageRequest request,
+        CancellationToken cancellationToken);
+
     Task<UserProfileDto> GetUserByUserNameAsync(
         string userName,
         CancellationToken cancellationToken);

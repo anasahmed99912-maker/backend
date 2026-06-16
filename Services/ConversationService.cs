@@ -172,6 +172,73 @@ public sealed class ConversationService(
         return ToMessageDto(message);
     }
 
+    public async Task<EncryptedMessageDto> UpdateMessageAsync(
+        string currentUserId,
+        UpdateEncryptedMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureParticipantAsync(currentUserId, request.ConversationId, cancellationToken);
+        ValidateMessageUpdate(request);
+
+        var message = await messageRepository.GetByIdAsync(request.MessageId, cancellationToken)
+            ?? throw new InvalidOperationException("Message was not found.");
+
+        if (!string.Equals(message.ConversationId, request.ConversationId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Message does not belong to this conversation.");
+        }
+
+        if (!string.Equals(message.SenderUserId, currentUserId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("Only the sender can update this message.");
+        }
+
+        message.CiphertextBase64 = request.CiphertextBase64;
+        message.IvBase64 = request.IvBase64;
+        message.EncryptionAlgorithm = string.IsNullOrWhiteSpace(request.EncryptionAlgorithm)
+            ? "AES-256-GCM"
+            : request.EncryptionAlgorithm.Trim();
+        message.Attachment = request.Attachment is not null
+            ? new EncryptedAttachment
+            {
+                FileName = request.Attachment.FileName,
+                MimeType = request.Attachment.MimeType,
+                CiphertextBase64 = request.Attachment.CiphertextBase64,
+                IvBase64 = request.Attachment.IvBase64,
+                SizeBytes = request.Attachment.SizeBytes
+            }
+            : request.PreserveAttachment
+                ? message.Attachment
+                : null;
+        message.UpdatedAtUtc = DateTime.UtcNow;
+
+        await messageRepository.ReplaceAsync(message, cancellationToken);
+        return ToMessageDto(message);
+    }
+
+    public async Task DeleteMessageAsync(
+        string currentUserId,
+        DeleteEncryptedMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureParticipantAsync(currentUserId, request.ConversationId, cancellationToken);
+
+        var message = await messageRepository.GetByIdAsync(request.MessageId, cancellationToken)
+            ?? throw new InvalidOperationException("Message was not found.");
+
+        if (!string.Equals(message.ConversationId, request.ConversationId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Message does not belong to this conversation.");
+        }
+
+        if (!string.Equals(message.SenderUserId, currentUserId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("Only the sender can delete this message.");
+        }
+
+        await messageRepository.DeleteAsync(request.MessageId, cancellationToken);
+    }
+
     public async Task<UserProfileDto> GetUserByUserNameAsync(
         string userName,
         CancellationToken cancellationToken)
@@ -226,6 +293,47 @@ public sealed class ConversationService(
         {
             throw new InvalidOperationException("ClientMessageId must be a valid UUID.");
         }
+
+        if (request.Attachment is null)
+        {
+            return;
+        }
+
+        if (request.Attachment.SizeBytes is <= 0 or > MaxAttachmentBytes)
+        {
+            throw new InvalidOperationException("Attachments must be between 1 byte and 5 MB.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Attachment.FileName) ||
+            request.Attachment.FileName.Length > 255 ||
+            string.IsNullOrWhiteSpace(request.Attachment.MimeType) ||
+            request.Attachment.MimeType.Length > 128)
+        {
+            throw new InvalidOperationException("Attachment metadata is invalid.");
+        }
+
+        ValidateBase64(
+            request.Attachment.CiphertextBase64,
+            nameof(request.Attachment.CiphertextBase64),
+            MaxAttachmentBytes + 16);
+        ValidateIv(request.Attachment.IvBase64);
+    }
+
+    private static void ValidateMessageUpdate(UpdateEncryptedMessageRequest request)
+    {
+        if (!string.Equals(
+                request.EncryptionAlgorithm,
+                "AES-256-GCM",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Only AES-256-GCM messages are accepted.");
+        }
+
+        ValidateBase64(
+            request.CiphertextBase64,
+            nameof(request.CiphertextBase64),
+            MaxTextCiphertextBytes);
+        ValidateIv(request.IvBase64);
 
         if (request.Attachment is null)
         {
@@ -358,7 +466,8 @@ public sealed class ConversationService(
                     message.Attachment.CiphertextBase64,
                     message.Attachment.IvBase64,
                     message.Attachment.SizeBytes),
-            message.SentAtUtc);
+            message.SentAtUtc,
+            message.UpdatedAtUtc);
     }
 
     private static UserProfileDto ToUserProfile(User user)

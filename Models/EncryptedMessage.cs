@@ -35,4 +35,8 @@ public sealed class EncryptedMessage
 
     [BsonElement("sentAtUtc")]
     public DateTime SentAtUtc { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("updatedAtUtc")]
+    [BsonIgnoreIfNull]
+    public DateTime? UpdatedAtUtc { get; set; }
 }
