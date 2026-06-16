@@ -183,6 +183,28 @@ public sealed class ConversationService(
         return ToUserProfile(user);
     }
 
+    public async Task<IReadOnlyList<UserProfileDto>> SearchUsersAsync(
+        string query,
+        CancellationToken cancellationToken)
+    {
+        var trimmedQuery = query.Trim();
+
+        if (trimmedQuery.Length < 2)
+        {
+            return [];
+        }
+
+        var normalizedQuery = trimmedQuery.ToLowerInvariant();
+        var users = await userRepository.SearchAsync(trimmedQuery, 8, cancellationToken);
+
+        return users
+            .OrderBy(user => GetSearchRank(user, normalizedQuery))
+            .ThenBy(user => user.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(user => user.UserName, StringComparer.OrdinalIgnoreCase)
+            .Select(ToUserProfile)
+            .ToList();
+    }
+
     private static void ValidateMessage(SendEncryptedMessageRequest request)
     {
         if (!string.Equals(
@@ -348,5 +370,52 @@ public sealed class ConversationService(
             user.IdentityPublicKeyJwk,
             user.Email,
             user.AvatarUrl);
+    }
+
+    private static int GetSearchRank(User user, string query)
+    {
+        if (string.Equals(user.UserName, query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (string.Equals(user.Email, query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (string.Equals(user.DisplayName, query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        if (user.UserName.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 3;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.Email) &&
+            user.Email.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 4;
+        }
+
+        if (user.DisplayName.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 5;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.Email) &&
+            user.Email.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 6;
+        }
+
+        if (user.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 7;
+        }
+
+        return 8;
     }
 }

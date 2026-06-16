@@ -43,11 +43,15 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ClientApp", policy =>
     {
-        var origins = builder.Configuration
+        var configuredOrigins = builder.Configuration
             .GetSection("AllowedOrigins")
-            .Get<string[]>() ?? ["http://localhost:3000"];
+            .Get<string[]>()?
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim().TrimEnd('/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
 
-        policy.WithOrigins(origins)
+        policy.SetIsOriginAllowed(origin =>
+            IsAllowedClientOrigin(origin, configuredOrigins))
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -111,6 +115,7 @@ builder.Services.AddScoped<IConversationService, ConversationService>();
 
 var app = builder.Build();
 
+app.UseRouting();
 app.UseCors("ClientApp");
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -121,10 +126,42 @@ app.MapGet("/", () => Results.Ok(new
     name = "SecureMessaging.Api",
     status = "running",
     encryption = "client-side E2EE with ECDH + AES-256-GCM"
-}));
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+})).RequireCors("ClientApp");
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+    .RequireCors("ClientApp");
 
-app.MapControllers();
-app.MapHub<ChatHub>("/hubs/chat");
+app.MapControllers().RequireCors("ClientApp");
+app.MapHub<ChatHub>("/hubs/chat").RequireCors("ClientApp");
 
 app.Run();
+
+static bool IsAllowedClientOrigin(string? origin, HashSet<string> configuredOrigins)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return false;
+    }
+
+    var normalizedOrigin = origin.Trim().TrimEnd('/');
+
+    if (configuredOrigins.Contains(normalizedOrigin))
+    {
+        return true;
+    }
+
+    if (!Uri.TryCreate(normalizedOrigin, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    var host = uri.Host;
+
+    if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+        host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase))
+    {
+        return uri.Scheme is "http" or "https";
+    }
+
+    return uri.Scheme == "https" &&
+        host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase);
+}

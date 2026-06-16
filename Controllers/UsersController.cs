@@ -10,6 +10,15 @@ namespace SecureMessaging.Api.Controllers;
 [Route("api/users")]
 public sealed class UsersController(IConversationService conversationService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<UserProfileDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UserProfileDto>>> Search(
+        [FromQuery] string query,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await conversationService.SearchUsersAsync(query, cancellationToken));
+    }
+
     [HttpGet("{userName}")]
     [ProducesResponseType<UserProfileDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

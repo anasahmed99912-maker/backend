@@ -1,6 +1,8 @@
+using MongoDB.Bson;
 using MongoDB.Driver;
 using SecureMessaging.Api.Infrastructure;
 using SecureMessaging.Api.Models;
+using System.Text.RegularExpressions;
 
 namespace SecureMessaging.Api.Repositories;
 
@@ -44,6 +46,37 @@ public sealed class MongoUserRepository(MongoDbContext context) : IUserRepositor
 
         return await context.Users
             .Find(user => ids.Contains(user.Id!))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<User>> SearchAsync(
+        string query,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var trimmedQuery = query.Trim();
+
+        if (string.IsNullOrWhiteSpace(trimmedQuery))
+        {
+            return [];
+        }
+
+        var escapedQuery = Regex.Escape(trimmedQuery);
+        var normalizedUserNameQuery = Regex.Escape(trimmedQuery.ToLowerInvariant());
+        var filter = Builders<User>.Filter.Or(
+            Builders<User>.Filter.Regex(
+                user => user.UserName,
+                new BsonRegularExpression($"^{normalizedUserNameQuery}", "i")),
+            Builders<User>.Filter.Regex(
+                user => user.DisplayName,
+                new BsonRegularExpression(escapedQuery, "i")),
+            Builders<User>.Filter.Regex(
+                user => user.Email,
+                new BsonRegularExpression(escapedQuery, "i")));
+
+        return await context.Users
+            .Find(filter)
+            .Limit(Math.Clamp(limit, 1, 10))
             .ToListAsync(cancellationToken);
     }
 

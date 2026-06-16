@@ -29,6 +29,10 @@ public interface IConversationService
         string userName,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<UserProfileDto>> SearchUsersAsync(
+        string query,
+        CancellationToken cancellationToken);
+
     Task<bool> IsParticipantAsync(
         string currentUserId,
         string conversationId,

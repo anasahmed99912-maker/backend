@@ -42,6 +42,10 @@ GoogleOAuth__ClientId
 AllowedOrigins__0
 ```
 
+The API accepts `localhost`, `127.0.0.1`, and `https://*.vercel.app` origins by
+default. Add `AllowedOrigins__*` entries for any additional custom frontend
+domains that should be able to call the API from the browser.
+
 ## Run
 
 ```powershell

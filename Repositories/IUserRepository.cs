@@ -9,6 +9,7 @@ public interface IUserRepository
     Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken);
     Task<User?> GetByGoogleSubjectAsync(string googleSubject, CancellationToken cancellationToken);
     Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<string> userIds, CancellationToken cancellationToken);
+    Task<IReadOnlyList<User>> SearchAsync(string query, int limit, CancellationToken cancellationToken);
     Task CreateAsync(User user, CancellationToken cancellationToken);
     Task ReplaceAsync(User user, CancellationToken cancellationToken);
 }
